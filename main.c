@@ -7,6 +7,8 @@
 void on_login_button_clicked(GtkWidget *widget, gpointer data);
 void on_create_account_button_clicked(GtkWidget *widget, gpointer data);
 void on_create_button_clicked(GtkWidget *widget, gpointer data);
+void open_main_window(const gchar *username);
+void on_search_entry_changed(GtkWidget *widget, gpointer data);
 
 // Widgets for the main window
 GtkWidget *username_entry;
@@ -18,16 +20,84 @@ GtkWidget *create_username_entry;
 GtkWidget *create_password_entry;
 GtkWidget *create_button;
 
+// Main application window
+GtkWidget *main_window;
+GtkWidget *login_window; // To keep track of the login window
+
 // Function to handle login button click
 void on_login_button_clicked(GtkWidget *widget, gpointer data) {
-    const gchar *username = gtk_entry_get_text(GTK_ENTRY(username_entry));
-    const gchar *password = gtk_entry_get_text(GTK_ENTRY(password_entry));
+    const gchar *entered_username = gtk_entry_get_text(GTK_ENTRY(username_entry));
+    const gchar *entered_password = gtk_entry_get_text(GTK_ENTRY(password_entry));
 
-    // Add authentication logic here (e.g., check against a predefined username and password)
+    // Retrieve stored password based on entered username
+    char filename[50];
+    sprintf(filename, "%s.txt", entered_username);
 
-    // For now, let's print the entered credentials
-    g_print("Username: %s\nPassword: %s\n", username, password);
+    FILE *file = fopen(filename, "r");
+    if (file != NULL) {
+        char stored_password[100]; // Adjust the size as needed
+        fscanf(file, "Username: %*s\nPassword: %[^\n]", stored_password);
+        fclose(file);
+
+        // Compare entered password with stored password
+        if (strcmp(entered_password, stored_password) == 0) {
+            // Successful login
+            g_print("Login successful!\n");
+            // Open the main window
+            open_main_window(entered_username);
+        } else {
+            // Failed login
+            g_print("Incorrect username or password.\n");
+            // Display an error message to the user
+        }
+    } else {
+        // File not found, user does not exist
+        g_print("User does not exist.\n");
+        // Display an error message to the user
+    }
 }
+
+// Function to open a new main window with a search bar
+void open_main_window(const gchar *username) {
+    // Creating a new main window
+    main_window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
+    gtk_window_set_title(GTK_WINDOW(main_window), "Planifique - Main");
+    gtk_window_set_default_size(GTK_WINDOW(main_window), 800, 600);
+
+    // Vertical box to hold widgets in the main window
+    GtkWidget *main_box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 10);
+    gtk_container_add(GTK_CONTAINER(main_window), main_box);
+
+    // Search bar
+    GtkWidget *search_entry = gtk_entry_new();
+    gtk_box_pack_start(GTK_BOX(main_box), search_entry, FALSE, FALSE, 5);
+
+    // Task list (example, replace it with your actual task list)
+    GtkWidget *task_list = gtk_label_new("Task List: (Replace this label with your actual task list)");
+    gtk_box_pack_start(GTK_BOX(main_box), task_list, FALSE, FALSE, 5);
+
+    // Connect "changed" signal to filter tasks function
+    g_signal_connect(search_entry, "changed", G_CALLBACK(on_search_entry_changed), task_list);
+
+    // Show all widgets in the main window
+    gtk_widget_show_all(main_window);
+
+    // Close the login window
+    gtk_widget_destroy(login_window);
+}
+
+// Function to handle changes in the search entry
+void on_search_entry_changed(GtkWidget *widget, gpointer data) {
+    const gchar *search_text = gtk_entry_get_text(GTK_ENTRY(widget));
+
+    // Perform the filtering based on the entered text
+    // Replace this with your actual filtering criteria and logic
+    g_print("Filtering tasks based on: %s\n", search_text);
+
+    // For now, just update the label with the search text
+    gtk_label_set_text(GTK_LABEL(data), g_strdup_printf("Task List: %s", search_text));
+}
+
 
 // Function to handle create account button click
 void on_create_account_button_clicked(GtkWidget *widget, gpointer data) {
@@ -170,6 +240,9 @@ int main(int argc, char *argv[]) {
 
     // Show all widgets
     gtk_widget_show_all(window);
+
+    // Keep track of the login window
+    login_window = window;
 
     // Enter the main loop
     gtk_main();
