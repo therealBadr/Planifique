@@ -9,6 +9,7 @@ void on_create_account_button_clicked(GtkWidget *widget, gpointer data);
 void on_create_button_clicked(GtkWidget *widget, gpointer data);
 void open_main_window(const gchar *username);
 void on_search_entry_changed(GtkWidget *widget, gpointer data);
+void on_task_selected(GtkWidget *widget, gpointer data);
 
 // Widgets for the main window
 GtkWidget *username_entry;
@@ -78,22 +79,34 @@ void open_main_window(const gchar *username) {
                                    GTK_POLICY_AUTOMATIC, GTK_POLICY_AUTOMATIC);
 
     // Set a fixed size for the scrolled window (replace 600, 400 with your desired size)
-    gtk_widget_set_size_request(scrolled_window, 600, 200);
+    gtk_widget_set_size_request(scrolled_window, 600, 300);
 
     gtk_box_pack_start(GTK_BOX(main_box), scrolled_window, FALSE, FALSE, 5);
 
-    // Box to hold tasks
-    GtkWidget *tasks_box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
-    gtk_container_add(GTK_CONTAINER(scrolled_window), tasks_box);
+    // ListBox to hold tasks
+    GtkWidget *tasks_listbox = gtk_list_box_new();
+    gtk_container_add(GTK_CONTAINER(scrolled_window), tasks_listbox);
 
     // Example tasks (replace it with your actual task list)
     for (int i = 1; i <= 20; ++i) {
+        // Create a ListBoxRow for each task
+        GtkWidget *task_row = gtk_list_box_row_new();
+        gtk_list_box_row_set_activatable(GTK_LIST_BOX_ROW(task_row), TRUE);
+        gtk_list_box_row_set_selectable(GTK_LIST_BOX_ROW(task_row), TRUE);
+        
+        // Create a label for the task
         GtkWidget *task_label = gtk_label_new(g_strdup_printf("Task %d", i));
-        gtk_box_pack_start(GTK_BOX(tasks_box), task_label, FALSE, FALSE, 5);
+        gtk_container_add(GTK_CONTAINER(task_row), task_label);
+
+        // Connect "activate" signal to handle task selection
+        g_signal_connect(task_row, "activate", G_CALLBACK(on_task_selected), NULL);
+
+        // Add the task row to the listbox
+        gtk_container_add(GTK_CONTAINER(tasks_listbox), task_row);
     }
 
     // Connect "changed" signal to filter tasks function
-    g_signal_connect(search_entry, "changed", G_CALLBACK(on_search_entry_changed), tasks_box);
+    g_signal_connect(search_entry, "changed", G_CALLBACK(on_search_entry_changed), tasks_listbox);
 
     // Show all widgets in the main window
     gtk_widget_show_all(main_window);
@@ -102,6 +115,13 @@ void open_main_window(const gchar *username) {
     gtk_widget_destroy(login_window);
 }
 
+// Function to handle task selection
+void on_task_selected(GtkWidget *widget, gpointer data) {
+    // You can add your logic here to handle the selected task
+    // For example, you can get the text of the selected task label
+    const gchar *task_text = gtk_label_get_text(GTK_LABEL(gtk_bin_get_child(GTK_BIN(widget))));
+    g_print("Selected Task: %s\n", task_text);
+}
 
 // Function to handle changes in the search entry
 void on_search_entry_changed(GtkWidget *widget, gpointer data) {
@@ -114,7 +134,6 @@ void on_search_entry_changed(GtkWidget *widget, gpointer data) {
     // For now, just update the label with the search text
     gtk_label_set_text(GTK_LABEL(data), g_strdup_printf("Task List: %s", search_text));
 }
-
 
 // Function to handle create account button click
 void on_create_account_button_clicked(GtkWidget *widget, gpointer data) {
@@ -203,7 +222,6 @@ void on_create_button_clicked(GtkWidget *widget, gpointer data) {
         }
     }
 }
-
 
 int main(int argc, char *argv[]) {
     GtkWidget *window;
