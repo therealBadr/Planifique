@@ -57,7 +57,7 @@ void on_login_button_clicked(GtkWidget *widget, gpointer data) {
     }
 }
 
-// Function to open a new main window with a search bar
+// Function to open a new main window with a search bar and task list
 void open_main_window(const gchar *username) {
     // Creating a new main window
     main_window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
@@ -72,12 +72,28 @@ void open_main_window(const gchar *username) {
     GtkWidget *search_entry = gtk_entry_new();
     gtk_box_pack_start(GTK_BOX(main_box), search_entry, FALSE, FALSE, 5);
 
-    // Task list (example, replace it with your actual task list)
-    GtkWidget *task_list = gtk_label_new("Task List: (Replace this label with your actual task list)");
-    gtk_box_pack_start(GTK_BOX(main_box), task_list, FALSE, FALSE, 5);
+    // Scrolled window for the task list
+    GtkWidget *scrolled_window = gtk_scrolled_window_new(NULL, NULL);
+    gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scrolled_window),
+                                   GTK_POLICY_AUTOMATIC, GTK_POLICY_AUTOMATIC);
+
+    // Set a fixed size for the scrolled window (replace 600, 400 with your desired size)
+    gtk_widget_set_size_request(scrolled_window, 600, 200);
+
+    gtk_box_pack_start(GTK_BOX(main_box), scrolled_window, FALSE, FALSE, 5);
+
+    // Box to hold tasks
+    GtkWidget *tasks_box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 5);
+    gtk_container_add(GTK_CONTAINER(scrolled_window), tasks_box);
+
+    // Example tasks (replace it with your actual task list)
+    for (int i = 1; i <= 20; ++i) {
+        GtkWidget *task_label = gtk_label_new(g_strdup_printf("Task %d", i));
+        gtk_box_pack_start(GTK_BOX(tasks_box), task_label, FALSE, FALSE, 5);
+    }
 
     // Connect "changed" signal to filter tasks function
-    g_signal_connect(search_entry, "changed", G_CALLBACK(on_search_entry_changed), task_list);
+    g_signal_connect(search_entry, "changed", G_CALLBACK(on_search_entry_changed), tasks_box);
 
     // Show all widgets in the main window
     gtk_widget_show_all(main_window);
@@ -85,6 +101,7 @@ void open_main_window(const gchar *username) {
     // Close the login window
     gtk_widget_destroy(login_window);
 }
+
 
 // Function to handle changes in the search entry
 void on_search_entry_changed(GtkWidget *widget, gpointer data) {
