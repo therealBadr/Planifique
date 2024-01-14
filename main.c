@@ -3,6 +3,14 @@
 #include <string.h>
 #include <gtk/gtk.h>
 
+typedef struct {
+    char category[50];
+    char name[50];
+    char description[100];
+    char date[20];
+    gboolean completed;
+} Task;
+
 // Function prototypes
 void on_login_button_clicked(GtkWidget *widget, gpointer data);
 void on_create_account_button_clicked(GtkWidget *widget, gpointer data);
@@ -10,6 +18,9 @@ void on_create_button_clicked(GtkWidget *widget, gpointer data);
 void open_main_window(const gchar *username);
 void on_search_entry_changed(GtkWidget *widget, gpointer data);
 void on_task_selected(GtkWidget *widget, gpointer data);
+void on_completed_tasks_toggled(GtkWidget *widget, gpointer data);
+void on_add_task_button_clicked(GtkWidget *widget, gpointer data);
+int load_tasks_from_file(const gchar *username, Task *tasks, int max_tasks);
 
 // Widgets for the main window
 GtkWidget *username_entry;
@@ -24,6 +35,29 @@ GtkWidget *create_button;
 // Main application window
 GtkWidget *main_window;
 GtkWidget *login_window; // To keep track of the login window
+
+Task tasks[100]; // Adjust the size as needed
+int num_tasks = 0;  // Initialize num_tasks to zero
+const gchar *username;  // Declare username
+const gchar *global_username;
+
+// Function to create a ListBoxRow for a task
+GtkWidget *create_task_row(Task *task) {
+    // Create a ListBoxRow
+    GtkWidget *row = gtk_list_box_row_new();
+
+    // Create a label with task information
+    GtkWidget *label = gtk_label_new(task->name);  // You can customize this based on your task structure
+
+    // Add the label to the row
+    gtk_container_add(GTK_CONTAINER(row), label);
+
+    // Connect "activate" signal to the on_task_selected function
+    g_signal_connect(row, "activate", G_CALLBACK(on_task_selected), NULL);
+
+    return row;
+}
+
 
 // Function to handle login button click
 void on_login_button_clicked(GtkWidget *widget, gpointer data) {
@@ -60,6 +94,11 @@ void on_login_button_clicked(GtkWidget *widget, gpointer data) {
 
 // Function to open a new main window with a search bar and task list
 void open_main_window(const gchar *username) {
+    g_print("Bienvenue, %s\n", username);
+     // Load tasks from file
+    num_tasks = load_tasks_from_file(username, tasks, sizeof(tasks) / sizeof(tasks[0]));
+    global_username = g_strdup(username);
+    
     // Creating a new main window
     main_window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
     gtk_window_set_title(GTK_WINDOW(main_window), "Planifique - Main");
@@ -72,6 +111,12 @@ void open_main_window(const gchar *username) {
     // Search bar
     GtkWidget *search_entry = gtk_entry_new();
     gtk_box_pack_start(GTK_BOX(main_box), search_entry, FALSE, FALSE, 5);
+
+    GtkWidget *completed_tasks_checkbox = gtk_check_button_new_with_label("Afficher seulement les tâches complétées");
+    gtk_box_pack_start(GTK_BOX(main_box), completed_tasks_checkbox, FALSE, FALSE, 5);   
+
+    GtkWidget *add_task_button = gtk_button_new_with_label("Ajouter une tâche");
+    gtk_box_pack_start(GTK_BOX(main_box), add_task_button, FALSE, FALSE, 5);
 
     // Scrolled window for the task list
     GtkWidget *scrolled_window = gtk_scrolled_window_new(NULL, NULL);
@@ -88,26 +133,20 @@ void open_main_window(const gchar *username) {
     gtk_container_add(GTK_CONTAINER(scrolled_window), tasks_listbox);
 
     // Example tasks (replace it with your actual task list)
-    for (int i = 1; i <= 20; ++i) {
-        // Create a ListBoxRow for each task
-        GtkWidget *task_row = gtk_list_box_row_new();
-        gtk_list_box_row_set_activatable(GTK_LIST_BOX_ROW(task_row), TRUE);
-        gtk_list_box_row_set_selectable(GTK_LIST_BOX_ROW(task_row), TRUE);
-        
-        // Create a label for the task
-        GtkWidget *task_label = gtk_label_new(g_strdup_printf("Task %d", i));
-        gtk_container_add(GTK_CONTAINER(task_row), task_label);
-
-        // Connect "activate" signal to handle task selection
-        g_signal_connect(task_row, "activate", G_CALLBACK(on_task_selected), NULL);
-
-        // Add the task row to the listbox
-        gtk_container_add(GTK_CONTAINER(tasks_listbox), task_row);
+    for (int i = 0; i < num_tasks; ++i) {
+    GtkWidget *task_row = create_task_row(&tasks[i]);
+    gtk_container_add(GTK_CONTAINER(tasks_listbox), task_row);
     }
 
     // Connect "changed" signal to filter tasks function
     g_signal_connect(search_entry, "changed", G_CALLBACK(on_search_entry_changed), tasks_listbox);
 
+    // Connect "toggled" signal to filter tasks function
+    g_signal_connect(completed_tasks_checkbox, "toggled", G_CALLBACK(on_completed_tasks_toggled), tasks_listbox);
+
+    // Connect "clicked" signal to add task function
+    g_signal_connect(add_task_button, "clicked", G_CALLBACK(on_add_task_button_clicked), tasks_listbox);   
+    
     // Show all widgets in the main window
     gtk_widget_show_all(main_window);
 
@@ -220,6 +259,98 @@ void on_create_button_clicked(GtkWidget *widget, gpointer data) {
             gtk_dialog_run(GTK_DIALOG(dialog));
             gtk_widget_destroy(dialog);
         }
+    }
+}
+
+// Add this function to handle the toggle of the completed tasks checkbox
+void on_completed_tasks_toggled(GtkWidget *widget, gpointer data) {
+    // Implement your logic here to filter out completed tasks
+    gboolean show_completed = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(widget));
+    // You may want to reload the task list based on the show_completed value
+    // For simplicity, I'm printing the status here
+    if (show_completed) {
+        g_print("Show completed tasks.\n");
+    } else {
+        g_print("Hide completed tasks.\n");
+    }
+}
+
+// Function to save tasks to a text file
+void save_tasks_to_file(const gchar *username, const Task *tasks, int num_tasks) {
+    char filename[50];
+    snprintf(filename, sizeof(filename), "%s_tasks.txt", username);
+
+    FILE *file = fopen(filename, "w");
+    if (file != NULL) {
+        for (int i = 0; i < num_tasks; ++i) {
+            fprintf(file, "%s|%s|%s|%s|%d\n", tasks[i].category, tasks[i].name,
+                    tasks[i].description, tasks[i].date, tasks[i].completed);
+        }
+        fclose(file);
+    } else {
+        g_print("Error opening file for writing.\n");
+    }
+}
+
+// Function to load tasks from a text file
+int load_tasks_from_file(const gchar *username, Task *tasks, int max_tasks) {
+    char filename[50];
+    snprintf(filename, sizeof(filename), "%s_tasks.txt", username);
+
+    FILE *file = fopen(filename, "r");
+    if (file != NULL) {
+        int i = 0;
+        while (i < max_tasks && fscanf(file, "%49[^|]|%49[^|]|%99[^|]|%19[^|]|%d\n",
+                                       tasks[i].category, tasks[i].name, tasks[i].description,
+                                       tasks[i].date, &tasks[i].completed) == 5) {
+            i++;
+        }
+        fclose(file);
+        return i;
+    } else {
+        g_print("Error opening file for reading.\n");
+        return 0;
+    }
+}
+
+
+
+// Function to handle the click of the "Add Task" button
+void on_add_task_button_clicked(GtkWidget *widget, gpointer data) {
+    // Implement your logic here to add a new task
+    Task new_task;
+    // You may want to open a dialog or another window for user input
+    // for task details (category, name, description, date, etc.)
+
+    // For simplicity, let's assume some default values
+    snprintf(new_task.category, sizeof(new_task.category), "Default Category");
+    snprintf(new_task.name, sizeof(new_task.name), "New Task");
+    snprintf(new_task.description, sizeof(new_task.description), "Description for New Task");
+    snprintf(new_task.date, sizeof(new_task.date), "2024-01-15"); // Replace with actual date
+    new_task.completed = FALSE;
+
+    // Add the new task to the tasks array
+    if (num_tasks < sizeof(tasks) / sizeof(tasks[0])) {
+        tasks[num_tasks++] = new_task;
+
+        // Save the updated tasks to the file
+        save_tasks_to_file(username, tasks, num_tasks);
+
+        // Clear the existing rows in the listbox
+        GList *children, *iter;
+        children = gtk_container_get_children(GTK_CONTAINER(data));
+        for (iter = children; iter != NULL; iter = g_list_next(iter)) {
+            gtk_widget_destroy(GTK_WIDGET(iter->data));
+        }
+        g_list_free(children);
+
+        // Reload and display tasks in the listbox
+        for (int i = 0; i < num_tasks; ++i) {
+            GtkWidget *task_row = create_task_row(&tasks[i]);
+            gtk_container_add(GTK_CONTAINER(data), task_row);
+        }
+    } else {
+        g_print("Reached the maximum number of tasks.\n");
     }
 }
 
