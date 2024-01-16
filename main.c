@@ -3,28 +3,24 @@
 #include <string.h>
 #include <gtk/gtk.h>
 
-typedef struct {
-    char category[50];
-    char name[50];
-    char description[100];
-    char date[20];
-    gboolean completed;
-} Task;
-
 // Function prototypes
 void on_login_button_clicked(GtkWidget *widget, gpointer data);
 void on_create_account_button_clicked(GtkWidget *widget, gpointer data);
 void on_create_button_clicked(GtkWidget *widget, gpointer data);
 void open_main_window(const gchar *username);
 void on_search_entry_changed(GtkWidget *widget, gpointer data);
-void on_task_selected(GtkWidget *widget, gpointer data);
-void on_completed_tasks_toggled(GtkWidget *widget, gpointer data);
 void on_add_task_button_clicked(GtkWidget *widget, gpointer data);
-int load_tasks_from_file(const gchar *username, Task *tasks, int max_tasks);
+void on_edit_task_button_clicked(GtkWidget *widget, gpointer data);
+void on_delete_task_button_clicked(GtkWidget *widget, gpointer data);
+void on_quit_program_button_clicked(GtkWidget *widget, gpointer data);
+void LoadAndDisplayTasks(const gchar *username);
 
 // Widgets for the main window
 GtkWidget *username_entry;
 GtkWidget *password_entry;
+// Replace the GtkTextView with a ListBox for tasks
+GtkWidget *task_listbox;
+GtkWidget *task_label;
 
 // Widgets for the account creation window
 GtkWidget *create_account_window;
@@ -36,26 +32,37 @@ GtkWidget *create_button;
 GtkWidget *main_window;
 GtkWidget *login_window; // To keep track of the login window
 
-Task tasks[100]; // Adjust the size as needed
-int num_tasks = 0;  // Initialize num_tasks to zero
-const gchar *username;  // Declare username
-const gchar *global_username;
+void LoadAndDisplayTasks(const gchar *username) {
+    // Open the tasks file associated with the user
+    char filename[50];
+    sprintf(filename, "%s_tasks.txt", username);
+    FILE *tasks_file = fopen(filename, "r"); 
 
-// Function to create a ListBoxRow for a task
-GtkWidget *create_task_row(Task *task) {
-    // Create a ListBoxRow
-    GtkWidget *row = gtk_list_box_row_new();
+    if (tasks_file != NULL) {
+        // Clear existing tasks in the ListBox
+        gtk_container_foreach(GTK_CONTAINER(task_listbox), (GtkCallback)gtk_widget_destroy, NULL);
 
-    // Create a label with task information
-    GtkWidget *label = gtk_label_new(task->name);  // You can customize this based on your task structure
+        char line[256];
+        while (fgets(line, sizeof(line), tasks_file) != NULL) {
+            g_print("Read task: %s", line);
+            // Create a GtkLabel for each task
+            GtkWidget *task_label = gtk_label_new(NULL);
+            gtk_label_set_text(GTK_LABEL(task_label), line);
 
-    // Add the label to the row
-    gtk_container_add(GTK_CONTAINER(row), label);
+            // Create a ListBoxRow and add the label to it
+            GtkWidget *task_row = gtk_list_box_row_new();
+            gtk_container_add(GTK_CONTAINER(task_row), task_label);
 
-    // Connect "activate" signal to the on_task_selected function
-    g_signal_connect(row, "activate", G_CALLBACK(on_task_selected), NULL);
+            // Add the ListBoxRow to the ListBox
+            gtk_list_box_insert(GTK_LIST_BOX(task_listbox), task_row, -1);
+            // Print debug messages
+    g_print("Adding task to ListBox: %s", line);
+        }
 
-    return row;
+        fclose(tasks_file);
+    } else {
+        g_error("Error opening tasks file for user: %s\n", username);
+    }
 }
 
 
@@ -67,8 +74,8 @@ void on_login_button_clicked(GtkWidget *widget, gpointer data) {
     // Retrieve stored password based on entered username
     char filename[50];
     sprintf(filename, "%s.txt", entered_username);
-
     FILE *file = fopen(filename, "r");
+
     if (file != NULL) {
         char stored_password[100]; // Adjust the size as needed
         fscanf(file, "Username: %*s\nPassword: %[^\n]", stored_password);
@@ -92,86 +99,467 @@ void on_login_button_clicked(GtkWidget *widget, gpointer data) {
     }
 }
 
-// Function to open a new main window with a search bar and task list
+// Function to open a new main window with a task list
 void open_main_window(const gchar *username) {
-    g_print("Bienvenue, %s\n", username);
-     // Load tasks from file
-    num_tasks = load_tasks_from_file(username, tasks, sizeof(tasks) / sizeof(tasks[0]));
-    global_username = g_strdup(username);
-    
     // Creating a new main window
     main_window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
     gtk_window_set_title(GTK_WINDOW(main_window), "Planifique - Main");
     gtk_window_set_default_size(GTK_WINDOW(main_window), 800, 600);
 
-    // Vertical box to hold widgets in the main window
-    GtkWidget *main_box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 10);
-    gtk_container_add(GTK_CONTAINER(main_window), main_box);
+    // Check if tasks file exists for the user
+    char filename[50];
+    sprintf(filename, "%s_tasks.txt", username);
+    FILE *tasks_file = fopen(filename, "r");
 
-    // Search bar
-    GtkWidget *search_entry = gtk_entry_new();
-    gtk_box_pack_start(GTK_BOX(main_box), search_entry, FALSE, FALSE, 5);
+    if (tasks_file != NULL) {
+        // File exists, close the file
+        fclose(tasks_file);
+        g_print("Tasks file exists for user: %s\n", username);
 
-    GtkWidget *completed_tasks_checkbox = gtk_check_button_new_with_label("Afficher seulement les tâches complétées");
-    gtk_box_pack_start(GTK_BOX(main_box), completed_tasks_checkbox, FALSE, FALSE, 5);   
+        // Vertical box to hold widgets in the main window
+        GtkWidget *main_box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 10);
+        gtk_container_add(GTK_CONTAINER(main_window), main_box);
 
-    GtkWidget *add_task_button = gtk_button_new_with_label("Ajouter une tâche");
-    gtk_box_pack_start(GTK_BOX(main_box), add_task_button, FALSE, FALSE, 5);
+        // Create a ListBox to hold the tasks
+        task_listbox = gtk_list_box_new();
+        gtk_box_pack_start(GTK_BOX(main_box), task_listbox, TRUE, TRUE, 5);
 
-    // Scrolled window for the task list
-    GtkWidget *scrolled_window = gtk_scrolled_window_new(NULL, NULL);
-    gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scrolled_window),
-                                   GTK_POLICY_AUTOMATIC, GTK_POLICY_AUTOMATIC);
+        // Load and display tasks
+        LoadAndDisplayTasks(username);
 
-    // Set a fixed size for the scrolled window (replace 600, 400 with your desired size)
-    gtk_widget_set_size_request(scrolled_window, 600, 300);
+        // Search bar
+        GtkWidget *search_entry = gtk_entry_new();
+        gtk_box_pack_start(GTK_BOX(main_box), search_entry, FALSE, FALSE, 5);
 
-    gtk_box_pack_start(GTK_BOX(main_box), scrolled_window, FALSE, FALSE, 5);
+        // Buttons
+        GtkWidget *add_task_button = gtk_button_new_with_label("Ajouter une tâche");
+        GtkWidget *edit_task_button = gtk_button_new_with_label("Modifier une tâche");
+        GtkWidget *delete_task_button = gtk_button_new_with_label("Supprimer une tâche");
+        GtkWidget *quit_program_button = gtk_button_new_with_label("Quitter le programme");
 
-    // ListBox to hold tasks
-    GtkWidget *tasks_listbox = gtk_list_box_new();
-    gtk_container_add(GTK_CONTAINER(scrolled_window), tasks_listbox);
+        gtk_box_pack_start(GTK_BOX(main_box), add_task_button, FALSE, FALSE, 5);
+        gtk_box_pack_start(GTK_BOX(main_box), edit_task_button, FALSE, FALSE, 5);
+        gtk_box_pack_start(GTK_BOX(main_box), delete_task_button, FALSE, FALSE, 5);
+        gtk_box_pack_start(GTK_BOX(main_box), quit_program_button, FALSE, FALSE, 5);
 
-    // Example tasks (replace it with your actual task list)
-    for (int i = 0; i < num_tasks; ++i) {
-    GtkWidget *task_row = create_task_row(&tasks[i]);
-    gtk_container_add(GTK_CONTAINER(tasks_listbox), task_row);
+        // Connect button click signals to respective functions
+        g_signal_connect(add_task_button, "clicked", G_CALLBACK(on_add_task_button_clicked), (gpointer)g_strdup(username));
+        g_signal_connect(edit_task_button, "clicked", G_CALLBACK(on_edit_task_button_clicked), (gpointer)g_strdup(username));
+        g_signal_connect(delete_task_button, "clicked", G_CALLBACK(on_delete_task_button_clicked), (gpointer)g_strdup(username));
+        g_signal_connect(quit_program_button, "clicked", G_CALLBACK(on_quit_program_button_clicked), NULL);
+
+        // Connect "changed" signal to filter tasks function
+        g_signal_connect(search_entry, "changed", G_CALLBACK(on_search_entry_changed), NULL);
+
+        // Show all widgets in the main window
+        gtk_widget_show_all(main_window);
+
+        // Close the login window
+        gtk_widget_destroy(login_window);
+    } else {
+        // File does not exist, create a new one
+        g_print("Tasks file does not exist for user: %s\n", username);
+
+        // Create a new tasks file for the user
+        tasks_file = fopen(filename, "a");
+
+        if (tasks_file != NULL) {
+            // You can add an initial message or header to the tasks file if needed
+            fprintf(tasks_file, "# Bienvenue, %s\n", username);
+
+            fclose(tasks_file);
+            g_print("New tasks file created for user: %s\n", username);
+
+// Vertical box to hold widgets in the main window
+        GtkWidget *main_box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 10);
+        gtk_container_add(GTK_CONTAINER(main_window), main_box);
+
+        // Create a ListBox to hold the tasks
+        task_listbox = gtk_list_box_new();
+        gtk_box_pack_start(GTK_BOX(main_box), task_listbox, TRUE, TRUE, 5);
+
+        // Load and display tasks
+        LoadAndDisplayTasks(username);
+
+        // Search bar
+        GtkWidget *search_entry = gtk_entry_new();
+        gtk_box_pack_start(GTK_BOX(main_box), search_entry, FALSE, FALSE, 5);
+
+        // Buttons
+        GtkWidget *add_task_button = gtk_button_new_with_label("Ajouter une tâche");
+        GtkWidget *edit_task_button = gtk_button_new_with_label("Modifier une tâche");
+        GtkWidget *delete_task_button = gtk_button_new_with_label("Supprimer une tâche");
+        GtkWidget *quit_program_button = gtk_button_new_with_label("Quitter le programme");
+
+        gtk_box_pack_start(GTK_BOX(main_box), add_task_button, FALSE, FALSE, 5);
+        gtk_box_pack_start(GTK_BOX(main_box), edit_task_button, FALSE, FALSE, 5);
+        gtk_box_pack_start(GTK_BOX(main_box), delete_task_button, FALSE, FALSE, 5);
+        gtk_box_pack_start(GTK_BOX(main_box), quit_program_button, FALSE, FALSE, 5);
+
+        // Connect button click signals to respective functions
+        g_signal_connect(add_task_button, "clicked", G_CALLBACK(on_add_task_button_clicked), (gpointer)g_strdup(username));
+        g_signal_connect(edit_task_button, "clicked", G_CALLBACK(on_edit_task_button_clicked), (gpointer)g_strdup(username));
+        g_signal_connect(delete_task_button, "clicked", G_CALLBACK(on_delete_task_button_clicked), (gpointer)g_strdup(username));
+        g_signal_connect(quit_program_button, "clicked", G_CALLBACK(on_quit_program_button_clicked), NULL);
+
+        // Connect "changed" signal to filter tasks function
+        g_signal_connect(search_entry, "changed", G_CALLBACK(on_search_entry_changed), NULL);
+
+        // Show all widgets in the main window
+        gtk_widget_show_all(main_window);
+
+        // Close the login window
+        gtk_widget_destroy(login_window);
+        } else {
+            g_error("Error creating tasks file for user: %s\n", username);
+            return;
+        }
+    }
+}
+
+
+// Function to handle add task button click
+void on_add_task_button_clicked(GtkWidget *widget, gpointer data) {
+    const gchar *username = (const gchar *)data;
+
+    // Create a new dialog window for task input
+    GtkWidget *task_dialog = gtk_dialog_new_with_buttons("Add Task",
+                                                        GTK_WINDOW(main_window),
+                                                        GTK_DIALOG_MODAL,
+                                                        "OK",
+                                                        GTK_RESPONSE_OK,
+                                                        "Cancel",
+                                                        GTK_RESPONSE_CANCEL,
+                                                        NULL);
+
+    // Create a grid to organize the dialog content
+    GtkWidget *grid = gtk_grid_new();
+    gtk_grid_set_row_spacing(GTK_GRID(grid), 5);
+    gtk_grid_set_column_spacing(GTK_GRID(grid), 5);
+    gtk_container_set_border_width(GTK_CONTAINER(grid), 10);
+    gtk_container_add(GTK_CONTAINER(gtk_dialog_get_content_area(GTK_DIALOG(task_dialog))), grid);
+
+    // Labels and entry fields for task details
+    GtkWidget *id_label = gtk_label_new("Task ID:");
+    GtkWidget *name_label = gtk_label_new("Task Name:");
+    GtkWidget *description_label = gtk_label_new("Task Description:");
+    GtkWidget *date_label = gtk_label_new("Task Date:");
+
+    GtkWidget *id_entry = gtk_entry_new();
+    GtkWidget *name_entry = gtk_entry_new();
+    GtkWidget *description_entry = gtk_entry_new();
+    GtkWidget *date_entry = gtk_entry_new();
+
+    gtk_grid_attach(GTK_GRID(grid), id_label, 0, 0, 1, 1);
+    gtk_grid_attach(GTK_GRID(grid), id_entry, 1, 0, 1, 1);
+    gtk_grid_attach(GTK_GRID(grid), name_label, 0, 1, 1, 1);
+    gtk_grid_attach(GTK_GRID(grid), name_entry, 1, 1, 1, 1);
+    gtk_grid_attach(GTK_GRID(grid), description_label, 0, 2, 1, 1);
+    gtk_grid_attach(GTK_GRID(grid), description_entry, 1, 2, 1, 1);
+    gtk_grid_attach(GTK_GRID(grid), date_label, 0, 3, 1, 1);
+    gtk_grid_attach(GTK_GRID(grid), date_entry, 1, 3, 1, 1);
+
+    // Show all widgets in the dialog
+    gtk_widget_show_all(task_dialog);
+
+    // Wait for user response
+    gint result = gtk_dialog_run(GTK_DIALOG(task_dialog));
+
+    if (result == GTK_RESPONSE_OK) {
+        // Retrieve entered task details
+        const gchar *id = gtk_entry_get_text(GTK_ENTRY(id_entry));
+        const gchar *name = gtk_entry_get_text(GTK_ENTRY(name_entry));
+        const gchar *description = gtk_entry_get_text(GTK_ENTRY(description_entry));
+        const gchar *date = gtk_entry_get_text(GTK_ENTRY(date_entry));
+
+        // Check if the task ID already exists in the user's tasks file
+        char filename[50];
+        sprintf(filename, "%s_tasks.txt", username);
+        FILE *tasks_file = fopen(filename, "r");
+
+        gboolean idExists = FALSE;
+        if (tasks_file != NULL) {
+            char line[256];
+            while (fgets(line, sizeof(line), tasks_file) != NULL) {
+                // Assuming the ID is the first word on each line, adjust accordingly
+                char existingID[50];
+                sscanf(line, "%s", existingID);
+
+                if (strcmp(existingID, id) == 0) {
+                    idExists = TRUE;
+                    break;
+                }
+            }
+
+            fclose(tasks_file);
+        }
+
+        // If the task ID exists, show an error message
+        if (idExists) {
+            GtkWidget *error_dialog = gtk_message_dialog_new(GTK_WINDOW(task_dialog),
+                                                             GTK_DIALOG_MODAL,
+                                                             GTK_MESSAGE_ERROR,
+                                                             GTK_BUTTONS_OK,
+                                                             "Task ID already exists. Please choose a different ID.");
+            gtk_dialog_run(GTK_DIALOG(error_dialog));
+            gtk_widget_destroy(error_dialog);
+        } else {
+            // If the task ID does not exist, proceed with adding the task
+            tasks_file = fopen(filename, "a");
+
+            if (tasks_file != NULL) {
+                fprintf(tasks_file, "%s - %s - %s - %s\n", id, name, description, date);
+                fclose(tasks_file);
+                LoadAndDisplayTasks(username);
+                g_print("Task added successfully!\n");
+
+                
+            } else {
+                g_error("Error opening tasks file for user: %s\n", username);
+            }
+        }
     }
 
-    // Connect "changed" signal to filter tasks function
-    g_signal_connect(search_entry, "changed", G_CALLBACK(on_search_entry_changed), tasks_listbox);
-
-    // Connect "toggled" signal to filter tasks function
-    g_signal_connect(completed_tasks_checkbox, "toggled", G_CALLBACK(on_completed_tasks_toggled), tasks_listbox);
-
-    // Connect "clicked" signal to add task function
-    g_signal_connect(add_task_button, "clicked", G_CALLBACK(on_add_task_button_clicked), tasks_listbox);   
-    
-    // Show all widgets in the main window
-    gtk_widget_show_all(main_window);
-
-    // Close the login window
-    gtk_widget_destroy(login_window);
+    // Close the dialog
+    gtk_widget_destroy(task_dialog);
 }
 
-// Function to handle task selection
-void on_task_selected(GtkWidget *widget, gpointer data) {
-    // You can add your logic here to handle the selected task
-    // For example, you can get the text of the selected task label
-    const gchar *task_text = gtk_label_get_text(GTK_LABEL(gtk_bin_get_child(GTK_BIN(widget))));
-    g_print("Selected Task: %s\n", task_text);
+// Function to handle edit task button click
+void on_edit_task_button_clicked(GtkWidget *widget, gpointer data) {
+    const gchar *username = (const gchar *)data;
+
+    // Create a new dialog window for task modification
+    GtkWidget *edit_task_dialog = gtk_dialog_new_with_buttons("Edit Task",
+                                                             GTK_WINDOW(main_window),
+                                                             GTK_DIALOG_MODAL,
+                                                             "OK",
+                                                             GTK_RESPONSE_OK,
+                                                             "Cancel",
+                                                             GTK_RESPONSE_CANCEL,
+                                                             NULL);
+
+    // Create a grid to organize the dialog content
+    GtkWidget *grid = gtk_grid_new();
+    gtk_grid_set_row_spacing(GTK_GRID(grid), 5);
+    gtk_grid_set_column_spacing(GTK_GRID(grid), 5);
+    gtk_container_set_border_width(GTK_CONTAINER(grid), 10);
+    gtk_container_add(GTK_CONTAINER(gtk_dialog_get_content_area(GTK_DIALOG(edit_task_dialog))), grid);
+
+    // Labels and entry fields for task details
+    GtkWidget *id_label = gtk_label_new("Task ID:");
+    GtkWidget *name_label = gtk_label_new("Task Name:");
+    GtkWidget *description_label = gtk_label_new("Task Description:");
+    GtkWidget *date_label = gtk_label_new("Task Date:");
+
+    GtkWidget *id_entry = gtk_entry_new();
+    GtkWidget *name_entry = gtk_entry_new();
+    GtkWidget *description_entry = gtk_entry_new();
+    GtkWidget *date_entry = gtk_entry_new();
+
+    gtk_grid_attach(GTK_GRID(grid), id_label, 0, 0, 1, 1);
+    gtk_grid_attach(GTK_GRID(grid), id_entry, 1, 0, 1, 1);
+    gtk_grid_attach(GTK_GRID(grid), name_label, 0, 1, 1, 1);
+    gtk_grid_attach(GTK_GRID(grid), name_entry, 1, 1, 1, 1);
+    gtk_grid_attach(GTK_GRID(grid), description_label, 0, 2, 1, 1);
+    gtk_grid_attach(GTK_GRID(grid), description_entry, 1, 2, 1, 1);
+    gtk_grid_attach(GTK_GRID(grid), date_label, 0, 3, 1, 1);
+    gtk_grid_attach(GTK_GRID(grid), date_entry, 1, 3, 1, 1);
+
+    // Show all widgets in the dialog
+    gtk_widget_show_all(edit_task_dialog);
+
+    // Wait for user response
+    gint result = gtk_dialog_run(GTK_DIALOG(edit_task_dialog));
+
+    if (result == GTK_RESPONSE_OK) {
+        // Retrieve entered task details
+        const gchar *edit_id = gtk_entry_get_text(GTK_ENTRY(id_entry));
+        const gchar *edit_name = gtk_entry_get_text(GTK_ENTRY(name_entry));
+        const gchar *edit_description = gtk_entry_get_text(GTK_ENTRY(description_entry));
+        const gchar *edit_date = gtk_entry_get_text(GTK_ENTRY(date_entry));
+
+        // Open the tasks file associated with the user
+        char filename[50];
+        sprintf(filename, "%s_tasks.txt", username);
+        FILE *tasks_file = fopen(filename, "r");
+
+        if (tasks_file != NULL) {
+            // Create a temporary file for writing modified task information
+            char temp_filename[50];
+            sprintf(temp_filename, "%s_tasks_temp.txt", username);
+            FILE *temp_file = fopen(temp_filename, "w");
+
+            if (temp_file != NULL) {
+                char line[256]; // Adjust the size as needed
+                gboolean task_found = FALSE;
+
+                // Read each line from the original file
+                while (fgets(line, sizeof(line), tasks_file) != NULL) {
+                    char current_id[50];
+                    if (sscanf(line, "%s", current_id) == 1 && strcmp(current_id, edit_id) == 0) {
+                        // Found the task with the provided ID, replace it with the new information
+                        fprintf(temp_file, "%s - %s - %s - %s\n", edit_id, edit_name, edit_description, edit_date);
+                        task_found = TRUE;
+                    } else {
+                        // Copy the line unchanged to the temporary file
+                        fprintf(temp_file, "%s", line);
+                    }
+                }
+
+                // Close both files
+                fclose(tasks_file);
+                fclose(temp_file);
+
+                // Remove the original file and rename the temporary file
+                remove(filename);
+                rename(temp_filename, filename);
+
+                if (task_found) {
+                    g_print("Task modified successfully!\n");
+
+                    // Refresh and display the tasks in the GtkTextView
+                    // (You will need to implement the function to load and display tasks)
+                    // ReloadTasks(username);
+
+                } else {
+                    // Display an error message for task not found
+                    GtkWidget *error_dialog = gtk_message_dialog_new(GTK_WINDOW(edit_task_dialog),
+                                                                     GTK_DIALOG_MODAL,
+                                                                     GTK_MESSAGE_ERROR,
+                                                                     GTK_BUTTONS_OK,
+                                                                     "Task with ID %s not found.", edit_id);
+                    gtk_dialog_run(GTK_DIALOG(error_dialog));
+                    gtk_widget_destroy(error_dialog);
+                }
+            } else {
+                g_error("Error creating temporary file for task modification.\n");
+            }
+        } else {
+            g_error("Error opening tasks file for user: %s\n", username);
+        }
+    }
+
+    // Close the dialog
+    gtk_widget_destroy(edit_task_dialog);
 }
 
-// Function to handle changes in the search entry
+
+// Function to handle delete task button click
+void on_delete_task_button_clicked(GtkWidget *widget, gpointer data) {
+    const gchar *username = (const gchar *)data;
+
+    // Create a new dialog window for task deletion
+    GtkWidget *delete_dialog = gtk_dialog_new_with_buttons("Delete Task",
+                                                           GTK_WINDOW(main_window),
+                                                           GTK_DIALOG_MODAL,
+                                                           "Delete",
+                                                           GTK_RESPONSE_ACCEPT,
+                                                           "Cancel",
+                                                           GTK_RESPONSE_CANCEL,
+                                                           NULL);
+
+    // Create a grid to organize the dialog content
+    GtkWidget *grid = gtk_grid_new();
+    gtk_grid_set_row_spacing(GTK_GRID(grid), 5);
+    gtk_grid_set_column_spacing(GTK_GRID(grid), 5);
+    gtk_container_set_border_width(GTK_CONTAINER(grid), 10);
+    gtk_container_add(GTK_CONTAINER(gtk_dialog_get_content_area(GTK_DIALOG(delete_dialog))), grid);
+
+    // Labels and entry field for task ID
+    GtkWidget *id_label = gtk_label_new("Task ID:");
+    GtkWidget *id_entry = gtk_entry_new();
+
+    gtk_grid_attach(GTK_GRID(grid), id_label, 0, 0, 1, 1);
+    gtk_grid_attach(GTK_GRID(grid), id_entry, 1, 0, 1, 1);
+
+    // Show all widgets in the dialog
+    gtk_widget_show_all(delete_dialog);
+
+    // Wait for user response
+    gint result = gtk_dialog_run(GTK_DIALOG(delete_dialog));
+
+    if (result == GTK_RESPONSE_ACCEPT) {
+        // Retrieve entered task ID
+        const gchar *task_id = gtk_entry_get_text(GTK_ENTRY(id_entry));
+
+        // Open the user's tasks file for reading
+        char filename[50];
+        sprintf(filename, "%s_tasks.txt", username);
+        FILE *tasks_file = fopen(filename, "r");
+
+        if (tasks_file != NULL) {
+            // Create a temporary file for writing
+            FILE *temp_file = fopen("temp_tasks_file.txt", "w");
+
+            // Initialize variables to store the current line and a flag indicating whether the task ID is found
+            char current_line[256];
+            gboolean task_found = FALSE;
+
+            // Read each line of the file
+            while (fgets(current_line, sizeof(current_line), tasks_file) != NULL) {
+                // Check if the task ID matches the one entered by the user
+                if (strstr(current_line, task_id) == NULL) {
+                    // If not, write the line to the temporary file
+                    fprintf(temp_file, "%s", current_line);
+                } else {
+                    // If found, set the flag to indicate success
+                    task_found = TRUE;
+                }
+            }
+
+            // Close the files
+            fclose(tasks_file);
+            fclose(temp_file);
+
+            if (task_found) {
+                // Replace the original file with the temporary file
+                remove(filename);
+                rename("temp_tasks_file.txt", filename);
+
+                g_print("Task deleted successfully!\n");
+
+                // Refresh and display the tasks in the GtkTextView
+                // (You will need to implement the function to load and display tasks)
+                // ReloadTasks(username);
+            } else {
+                // Display an error message for task not found
+                GtkWidget *error_dialog = gtk_message_dialog_new(GTK_WINDOW(delete_dialog),
+                                                                 GTK_DIALOG_MODAL,
+                                                                 GTK_MESSAGE_ERROR,
+                                                                 GTK_BUTTONS_OK,
+                                                                 "Task with ID %s not found.", task_id);
+                gtk_dialog_run(GTK_DIALOG(error_dialog));
+                gtk_widget_destroy(error_dialog);
+            }
+        } else {
+            // Display an error message for file not found
+            GtkWidget *error_dialog = gtk_message_dialog_new(GTK_WINDOW(delete_dialog),
+                                                             GTK_DIALOG_MODAL,
+                                                             GTK_MESSAGE_ERROR,
+                                                             GTK_BUTTONS_OK,
+                                                             "Error opening tasks file for user: %s", username);
+            gtk_dialog_run(GTK_DIALOG(error_dialog));
+            gtk_widget_destroy(error_dialog);
+        }
+    }
+
+    // Close the dialog
+    gtk_widget_destroy(delete_dialog);
+}
+
+
+// Function to handle quit program button click
+void on_quit_program_button_clicked(GtkWidget *widget, gpointer data) {
+    g_print("Quit program button clicked\n");
+    gtk_main_quit();
+}
+
+
 void on_search_entry_changed(GtkWidget *widget, gpointer data) {
     const gchar *search_text = gtk_entry_get_text(GTK_ENTRY(widget));
 
-    // Perform the filtering based on the entered text
-    // Replace this with your actual filtering criteria and logic
-    g_print("Filtering tasks based on: %s\n", search_text);
-
-    // For now, just update the label with the search text
-    gtk_label_set_text(GTK_LABEL(data), g_strdup_printf("Task List: %s", search_text));
+    // Update the label with the search text
+    gtk_label_set_text(GTK_LABEL(task_label), search_text);
 }
 
 // Function to handle create account button click
@@ -217,8 +605,8 @@ void on_create_button_clicked(GtkWidget *widget, gpointer data) {
     // Check if a file with the same username already exists
     char filename[50];
     sprintf(filename, "%s.txt", create_username);
-
     FILE *file = fopen(filename, "r");
+
     if (file != NULL) {
         // Close the file if it exists
         fclose(file);
@@ -234,6 +622,7 @@ void on_create_button_clicked(GtkWidget *widget, gpointer data) {
     } else {
         // Create a new file with username and password as its name
         file = fopen(filename, "w");
+
         if (file != NULL) {
             fprintf(file, "Username: %s\nPassword: %s\n", create_username, create_password);
             fclose(file);
@@ -262,97 +651,6 @@ void on_create_button_clicked(GtkWidget *widget, gpointer data) {
     }
 }
 
-// Add this function to handle the toggle of the completed tasks checkbox
-void on_completed_tasks_toggled(GtkWidget *widget, gpointer data) {
-    // Implement your logic here to filter out completed tasks
-    gboolean show_completed = gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(widget));
-    // You may want to reload the task list based on the show_completed value
-    // For simplicity, I'm printing the status here
-    if (show_completed) {
-        g_print("Show completed tasks.\n");
-    } else {
-        g_print("Hide completed tasks.\n");
-    }
-}
-
-// Function to save tasks to a text file
-void save_tasks_to_file(const gchar *username, const Task *tasks, int num_tasks) {
-    char filename[50];
-    snprintf(filename, sizeof(filename), "%s_tasks.txt", username);
-
-    FILE *file = fopen(filename, "w");
-    if (file != NULL) {
-        for (int i = 0; i < num_tasks; ++i) {
-            fprintf(file, "%s|%s|%s|%s|%d\n", tasks[i].category, tasks[i].name,
-                    tasks[i].description, tasks[i].date, tasks[i].completed);
-        }
-        fclose(file);
-    } else {
-        g_print("Error opening file for writing.\n");
-    }
-}
-
-// Function to load tasks from a text file
-int load_tasks_from_file(const gchar *username, Task *tasks, int max_tasks) {
-    char filename[50];
-    snprintf(filename, sizeof(filename), "%s_tasks.txt", username);
-
-    FILE *file = fopen(filename, "r");
-    if (file != NULL) {
-        int i = 0;
-        while (i < max_tasks && fscanf(file, "%49[^|]|%49[^|]|%99[^|]|%19[^|]|%d\n",
-                                       tasks[i].category, tasks[i].name, tasks[i].description,
-                                       tasks[i].date, &tasks[i].completed) == 5) {
-            i++;
-        }
-        fclose(file);
-        return i;
-    } else {
-        g_print("Error opening file for reading.\n");
-        return 0;
-    }
-}
-
-
-
-// Function to handle the click of the "Add Task" button
-void on_add_task_button_clicked(GtkWidget *widget, gpointer data) {
-    // Implement your logic here to add a new task
-    Task new_task;
-    // You may want to open a dialog or another window for user input
-    // for task details (category, name, description, date, etc.)
-
-    // For simplicity, let's assume some default values
-    snprintf(new_task.category, sizeof(new_task.category), "Default Category");
-    snprintf(new_task.name, sizeof(new_task.name), "New Task");
-    snprintf(new_task.description, sizeof(new_task.description), "Description for New Task");
-    snprintf(new_task.date, sizeof(new_task.date), "2024-01-15"); // Replace with actual date
-    new_task.completed = FALSE;
-
-    // Add the new task to the tasks array
-    if (num_tasks < sizeof(tasks) / sizeof(tasks[0])) {
-        tasks[num_tasks++] = new_task;
-
-        // Save the updated tasks to the file
-        save_tasks_to_file(username, tasks, num_tasks);
-
-        // Clear the existing rows in the listbox
-        GList *children, *iter;
-        children = gtk_container_get_children(GTK_CONTAINER(data));
-        for (iter = children; iter != NULL; iter = g_list_next(iter)) {
-            gtk_widget_destroy(GTK_WIDGET(iter->data));
-        }
-        g_list_free(children);
-
-        // Reload and display tasks in the listbox
-        for (int i = 0; i < num_tasks; ++i) {
-            GtkWidget *task_row = create_task_row(&tasks[i]);
-            gtk_container_add(GTK_CONTAINER(data), task_row);
-        }
-    } else {
-        g_print("Reached the maximum number of tasks.\n");
-    }
-}
 
 int main(int argc, char *argv[]) {
     GtkWidget *window;
@@ -399,6 +697,10 @@ int main(int argc, char *argv[]) {
     // Create account button
     create_account_button = gtk_button_new_with_label("Create an account");
     gtk_box_pack_start(GTK_BOX(main_box), create_account_button, FALSE, FALSE, 10);
+
+    // Create a label for tasks
+    task_label = gtk_label_new(NULL);
+    gtk_box_pack_start(GTK_BOX(main_box), task_label, TRUE, TRUE, 5);
 
     // Connect "clicked" signals to respective functions
     g_signal_connect(login_button, "clicked", G_CALLBACK(on_login_button_clicked), NULL);
