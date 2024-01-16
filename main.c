@@ -44,7 +44,7 @@ void LoadAndDisplayTasks(const gchar *username) {
 
         char line[256];
         while (fgets(line, sizeof(line), tasks_file) != NULL) {
-            g_print("Read task: %s", line);
+            g_print("Tâche de lecture: %s", line);
             // Create a GtkLabel for each task
             GtkWidget *task_label = gtk_label_new(NULL);
             gtk_label_set_text(GTK_LABEL(task_label), line);
@@ -56,12 +56,12 @@ void LoadAndDisplayTasks(const gchar *username) {
             // Add the ListBoxRow to the ListBox
             gtk_list_box_insert(GTK_LIST_BOX(task_listbox), task_row, -1);
             // Print debug messages
-    g_print("Adding task to ListBox: %s", line);
+    g_print("Ajout d'une tâche à ListBox: %s", line);
         }
 
         fclose(tasks_file);
     } else {
-        g_error("Error opening tasks file for user: %s\n", username);
+        g_error("Erreur lors de l'ouverture du fichier de tâches pour l'utilisateur: %s\n", username);
     }
 }
 
@@ -78,18 +78,18 @@ void on_login_button_clicked(GtkWidget *widget, gpointer data) {
 
     if (file != NULL) {
         char stored_password[100]; // Adjust the size as needed
-        fscanf(file, "Username: %*s\nPassword: %[^\n]", stored_password);
+        fscanf(file, "Nom du compte: %*s\nMot de passe: %99[^\n]", stored_password);
         fclose(file);
 
         // Compare entered password with stored password
         if (strcmp(entered_password, stored_password) == 0) {
             // Successful login
-            g_print("Login successful!\n");
+            g_print("Connexion réussie!\n");
             // Open the main window
             open_main_window(entered_username);
         } else {
             // Failed login
-            g_print("Incorrect username or password.\n");
+            g_print("Identifiant ou mot de passe incorrect.\n");
             // Display an error message to the user
         }
     } else {
@@ -103,7 +103,7 @@ void on_login_button_clicked(GtkWidget *widget, gpointer data) {
 void open_main_window(const gchar *username) {
     // Creating a new main window
     main_window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
-    gtk_window_set_title(GTK_WINDOW(main_window), "Planifique - Main");
+    gtk_window_set_title(GTK_WINDOW(main_window), "Planifique - Acceuil");
     gtk_window_set_default_size(GTK_WINDOW(main_window), 800, 600);
 
     // Check if tasks file exists for the user
@@ -114,7 +114,7 @@ void open_main_window(const gchar *username) {
     if (tasks_file != NULL) {
         // File exists, close the file
         fclose(tasks_file);
-        g_print("Tasks file exists for user: %s\n", username);
+        g_print("Le fichier de tâches existe pour l'utilisateur: %s\n", username);
 
         // Vertical box to hold widgets in the main window
         GtkWidget *main_box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 10);
@@ -158,7 +158,7 @@ void open_main_window(const gchar *username) {
         gtk_widget_destroy(login_window);
     } else {
         // File does not exist, create a new one
-        g_print("Tasks file does not exist for user: %s\n", username);
+        g_print("Le fichier de tâches n'existe pas pour l'utilisateur: %s\n", username);
 
         // Create a new tasks file for the user
         tasks_file = fopen(filename, "a");
@@ -168,7 +168,7 @@ void open_main_window(const gchar *username) {
             fprintf(tasks_file, "# Bienvenue, %s\n", username);
 
             fclose(tasks_file);
-            g_print("New tasks file created for user: %s\n", username);
+            g_print("Nouveau fichier de tâches créé pour l'utilisateur: %s\n", username);
 
 // Vertical box to hold widgets in the main window
         GtkWidget *main_box = gtk_box_new(GTK_ORIENTATION_VERTICAL, 10);
@@ -223,12 +223,12 @@ void on_add_task_button_clicked(GtkWidget *widget, gpointer data) {
     const gchar *username = (const gchar *)data;
 
     // Create a new dialog window for task input
-    GtkWidget *task_dialog = gtk_dialog_new_with_buttons("Add Task",
+    GtkWidget *task_dialog = gtk_dialog_new_with_buttons("Ajouter une tâche",
                                                         GTK_WINDOW(main_window),
                                                         GTK_DIALOG_MODAL,
                                                         "OK",
                                                         GTK_RESPONSE_OK,
-                                                        "Cancel",
+                                                        "Annuler",
                                                         GTK_RESPONSE_CANCEL,
                                                         NULL);
 
@@ -239,11 +239,10 @@ void on_add_task_button_clicked(GtkWidget *widget, gpointer data) {
     gtk_container_set_border_width(GTK_CONTAINER(grid), 10);
     gtk_container_add(GTK_CONTAINER(gtk_dialog_get_content_area(GTK_DIALOG(task_dialog))), grid);
 
-    // Labels and entry fields for task details
-    GtkWidget *id_label = gtk_label_new("Task ID:");
-    GtkWidget *name_label = gtk_label_new("Task Name:");
-    GtkWidget *description_label = gtk_label_new("Task Description:");
-    GtkWidget *date_label = gtk_label_new("Task Date:");
+    GtkWidget *id_label = gtk_label_new("ID de tâche:");
+    GtkWidget *name_label = gtk_label_new("Nom de tâche:");
+    GtkWidget *description_label = gtk_label_new("Description de tâche:");
+    GtkWidget *date_label = gtk_label_new("Date de tâche:");
 
     GtkWidget *id_entry = gtk_entry_new();
     GtkWidget *name_entry = gtk_entry_new();
@@ -300,7 +299,7 @@ void on_add_task_button_clicked(GtkWidget *widget, gpointer data) {
                                                              GTK_DIALOG_MODAL,
                                                              GTK_MESSAGE_ERROR,
                                                              GTK_BUTTONS_OK,
-                                                             "Task ID already exists. Please choose a different ID.");
+                                                             "L'ID de tâche existe déjà. Veuillez choisir un autre identifiant.");
             gtk_dialog_run(GTK_DIALOG(error_dialog));
             gtk_widget_destroy(error_dialog);
         } else {
@@ -311,11 +310,11 @@ void on_add_task_button_clicked(GtkWidget *widget, gpointer data) {
                 fprintf(tasks_file, "%s - %s - %s - %s\n", id, name, description, date);
                 fclose(tasks_file);
                 LoadAndDisplayTasks(username);
-                g_print("Task added successfully!\n");
+                g_print("Tâche ajoutée avec succès!\n");
 
                 
             } else {
-                g_error("Error opening tasks file for user: %s\n", username);
+                g_error("Erreur lors de l'ouverture du fichier de tâches pour l'utilisateur: %s\n", username);
             }
         }
     }
@@ -329,12 +328,12 @@ void on_edit_task_button_clicked(GtkWidget *widget, gpointer data) {
     const gchar *username = (const gchar *)data;
 
     // Create a new dialog window for task modification
-    GtkWidget *edit_task_dialog = gtk_dialog_new_with_buttons("Edit Task",
+    GtkWidget *edit_task_dialog = gtk_dialog_new_with_buttons("Editer tâche",
                                                              GTK_WINDOW(main_window),
                                                              GTK_DIALOG_MODAL,
                                                              "OK",
                                                              GTK_RESPONSE_OK,
-                                                             "Cancel",
+                                                             "Annuler",
                                                              GTK_RESPONSE_CANCEL,
                                                              NULL);
 
@@ -346,10 +345,10 @@ void on_edit_task_button_clicked(GtkWidget *widget, gpointer data) {
     gtk_container_add(GTK_CONTAINER(gtk_dialog_get_content_area(GTK_DIALOG(edit_task_dialog))), grid);
 
     // Labels and entry fields for task details
-    GtkWidget *id_label = gtk_label_new("Task ID:");
-    GtkWidget *name_label = gtk_label_new("Task Name:");
-    GtkWidget *description_label = gtk_label_new("Task Description:");
-    GtkWidget *date_label = gtk_label_new("Task Date:");
+    GtkWidget *id_label = gtk_label_new("ID de tâche:");
+    GtkWidget *name_label = gtk_label_new("Nom de tâche:");
+    GtkWidget *description_label = gtk_label_new("Description de tâche:");
+    GtkWidget *date_label = gtk_label_new("Date de tâche:");
 
     GtkWidget *id_entry = gtk_entry_new();
     GtkWidget *name_entry = gtk_entry_new();
@@ -415,7 +414,7 @@ void on_edit_task_button_clicked(GtkWidget *widget, gpointer data) {
                 rename(temp_filename, filename);
 
                 if (task_found) {
-                    g_print("Task modified successfully!\n");
+                    g_print("Tâche modifiée avec succès !\n");
 
                     // Refresh and display the tasks in the GtkTextView
                     // (You will need to implement the function to load and display tasks)
@@ -427,15 +426,15 @@ void on_edit_task_button_clicked(GtkWidget *widget, gpointer data) {
                                                                      GTK_DIALOG_MODAL,
                                                                      GTK_MESSAGE_ERROR,
                                                                      GTK_BUTTONS_OK,
-                                                                     "Task with ID %s not found.", edit_id);
+                                                                     "Tâche avec l'ID %s introuvable.", edit_id);
                     gtk_dialog_run(GTK_DIALOG(error_dialog));
                     gtk_widget_destroy(error_dialog);
                 }
             } else {
-                g_error("Error creating temporary file for task modification.\n");
+                g_error("Erreur lors de la création du fichier temporaire pour la modification de la tâche.\n");
             }
         } else {
-            g_error("Error opening tasks file for user: %s\n", username);
+            g_error("Erreur lors de l'ouverture du fichier de tâches pour l'utilisateur : %s\n", username);
         }
     }
 
@@ -449,12 +448,12 @@ void on_delete_task_button_clicked(GtkWidget *widget, gpointer data) {
     const gchar *username = (const gchar *)data;
 
     // Create a new dialog window for task deletion
-    GtkWidget *delete_dialog = gtk_dialog_new_with_buttons("Delete Task",
+    GtkWidget *delete_dialog = gtk_dialog_new_with_buttons("Supprimer la tâche",
                                                            GTK_WINDOW(main_window),
                                                            GTK_DIALOG_MODAL,
-                                                           "Delete",
+                                                           "Supprimer",
                                                            GTK_RESPONSE_ACCEPT,
-                                                           "Cancel",
+                                                           "Annuler",
                                                            GTK_RESPONSE_CANCEL,
                                                            NULL);
 
@@ -516,7 +515,7 @@ void on_delete_task_button_clicked(GtkWidget *widget, gpointer data) {
                 remove(filename);
                 rename("temp_tasks_file.txt", filename);
 
-                g_print("Task deleted successfully!\n");
+                g_print("Tâche supprimée avec succès !\n");
 
                 // Refresh and display the tasks in the GtkTextView
                 // (You will need to implement the function to load and display tasks)
@@ -527,7 +526,7 @@ void on_delete_task_button_clicked(GtkWidget *widget, gpointer data) {
                                                                  GTK_DIALOG_MODAL,
                                                                  GTK_MESSAGE_ERROR,
                                                                  GTK_BUTTONS_OK,
-                                                                 "Task with ID %s not found.", task_id);
+                                                                 "Tâche avec l'ID %s introuvable.", task_id);
                 gtk_dialog_run(GTK_DIALOG(error_dialog));
                 gtk_widget_destroy(error_dialog);
             }
@@ -537,7 +536,7 @@ void on_delete_task_button_clicked(GtkWidget *widget, gpointer data) {
                                                              GTK_DIALOG_MODAL,
                                                              GTK_MESSAGE_ERROR,
                                                              GTK_BUTTONS_OK,
-                                                             "Error opening tasks file for user: %s", username);
+                                                             "Erreur lors de l'ouverture du fichier de tâches pour l'utilisateur: %s", username);
             gtk_dialog_run(GTK_DIALOG(error_dialog));
             gtk_widget_destroy(error_dialog);
         }
@@ -550,7 +549,7 @@ void on_delete_task_button_clicked(GtkWidget *widget, gpointer data) {
 
 // Function to handle quit program button click
 void on_quit_program_button_clicked(GtkWidget *widget, gpointer data) {
-    g_print("Quit program button clicked\n");
+    g_print("Cliquez sur le bouton Quitter le programme\n");
     gtk_main_quit();
 }
 
@@ -566,7 +565,7 @@ void on_search_entry_changed(GtkWidget *widget, gpointer data) {
 void on_create_account_button_clicked(GtkWidget *widget, gpointer data) {
     // Create a new window for account creation
     create_account_window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
-    gtk_window_set_title(GTK_WINDOW(create_account_window), "Create Account");
+    gtk_window_set_title(GTK_WINDOW(create_account_window), "Créer un compte");
     gtk_window_set_default_size(GTK_WINDOW(create_account_window), 400, 200);
 
     // Vertical box to hold widgets in the account creation window
@@ -574,20 +573,20 @@ void on_create_account_button_clicked(GtkWidget *widget, gpointer data) {
     gtk_container_add(GTK_CONTAINER(create_account_window), create_account_box);
 
     // Username field in account creation window
-    GtkWidget *create_username_label = gtk_label_new("Enter Username:");
+    GtkWidget *create_username_label = gtk_label_new("Saisissez votre nom d'utilisateur:");
     gtk_box_pack_start(GTK_BOX(create_account_box), create_username_label, FALSE, FALSE, 10);
     create_username_entry = gtk_entry_new();
     gtk_box_pack_start(GTK_BOX(create_account_box), create_username_entry, FALSE, FALSE, 5);
 
     // Password field in account creation window
-    GtkWidget *create_password_label = gtk_label_new("Enter Password:");
+    GtkWidget *create_password_label = gtk_label_new("Saisissez le mot de passe:");
     gtk_box_pack_start(GTK_BOX(create_account_box), create_password_label, FALSE, FALSE, 5);
     create_password_entry = gtk_entry_new();
     gtk_entry_set_visibility(GTK_ENTRY(create_password_entry), FALSE); // Hide password
     gtk_box_pack_start(GTK_BOX(create_account_box), create_password_entry, FALSE, FALSE, 5);
 
     // Create button in account creation window
-    create_button = gtk_button_new_with_label("Create Account");
+    create_button = gtk_button_new_with_label("Créer un compte");
     gtk_box_pack_start(GTK_BOX(create_account_box), create_button, FALSE, FALSE, 10);
 
     // Connect "clicked" signal to create account function
@@ -616,7 +615,7 @@ void on_create_button_clicked(GtkWidget *widget, gpointer data) {
                                                    GTK_DIALOG_MODAL,
                                                    GTK_MESSAGE_ERROR,
                                                    GTK_BUTTONS_OK,
-                                                   "An account with the same username already exists.");
+                                                   "Un compte avec le même nom d'utilisateur existe déjà.");
         gtk_dialog_run(GTK_DIALOG(dialog));
         gtk_widget_destroy(dialog);
     } else {
@@ -624,7 +623,7 @@ void on_create_button_clicked(GtkWidget *widget, gpointer data) {
         file = fopen(filename, "w");
 
         if (file != NULL) {
-            fprintf(file, "Username: %s\nPassword: %s\n", create_username, create_password);
+            fprintf(file, "Nom du compte: %s\nMot de passe: %s\n", create_username, create_password);
             fclose(file);
 
             // Display a pop-up for a successfully created account
@@ -632,7 +631,7 @@ void on_create_button_clicked(GtkWidget *widget, gpointer data) {
                                                        GTK_DIALOG_MODAL,
                                                        GTK_MESSAGE_INFO,
                                                        GTK_BUTTONS_OK,
-                                                       "Account created successfully!");
+                                                       "Compte créé avec succès !");
             gtk_dialog_run(GTK_DIALOG(dialog));
             gtk_widget_destroy(dialog);
 
@@ -644,7 +643,7 @@ void on_create_button_clicked(GtkWidget *widget, gpointer data) {
                                                        GTK_DIALOG_MODAL,
                                                        GTK_MESSAGE_ERROR,
                                                        GTK_BUTTONS_OK,
-                                                       "Error creating the account file.");
+                                                       "Erreur - Fichier compte.");
             gtk_dialog_run(GTK_DIALOG(dialog));
             gtk_widget_destroy(dialog);
         }
@@ -666,7 +665,7 @@ int main(int argc, char *argv[]) {
 
     // Creating a window
     window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
-    gtk_window_set_title(GTK_WINDOW(window), "Planifique - Login");
+    gtk_window_set_title(GTK_WINDOW(window), "Planifique - Connexion");
     gtk_window_set_default_size(GTK_WINDOW(window), 600, 400);
 
     // Vertical box to hold widgets in the main window
@@ -691,11 +690,11 @@ int main(int argc, char *argv[]) {
     gtk_box_pack_start(GTK_BOX(main_box), password_entry, FALSE, FALSE, 5);
 
     // Login button
-    login_button = gtk_button_new_with_label("Login");
+    login_button = gtk_button_new_with_label("Se connecter");
     gtk_box_pack_start(GTK_BOX(main_box), login_button, FALSE, FALSE, 10);
 
     // Create account button
-    create_account_button = gtk_button_new_with_label("Create an account");
+    create_account_button = gtk_button_new_with_label("Créer une compte");
     gtk_box_pack_start(GTK_BOX(main_box), create_account_button, FALSE, FALSE, 10);
 
     // Create a label for tasks
