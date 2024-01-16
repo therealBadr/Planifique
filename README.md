@@ -1,6 +1,8 @@
 # Planifique
 Gestionnaire des tâches - Made with C &amp; GTK Library
 
+**Pour compiler le fichier source:** gcc -o planifique main.c `pkg-config --cflags --libs gtk+-3.0` (Notez qu'il faut d'abord installer GTK dans votre machine)
+
 Les pilliers de la bibliothèque GTK:
 
 # Widgets (Widgets):
